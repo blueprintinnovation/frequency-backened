@@ -91,7 +91,7 @@ app.post('/auth/refresh', async (req, res) => {
 // ── NEWS PROXY ────────────────────────────────────────────────
 // Fetches RSS feeds server-side, no CORS issues
 const NEWS_FEEDS = {
-  afl:   ['https://www.abc.net.au/news/feed/51120/rss.xml', 'https://www.heraldsun.com.au/sport/afl/rss', 'https://www.foxsports.com.au/rss'],
+  afl:   ['https://www.abc.net.au/news/feed/7077144/rss.xml', 'https://www.afana.com/rss.xml', 'https://sportsnews.com.au/feed'],
   world: ['https://feeds.bbci.co.uk/news/world/rss.xml', 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', 'https://feeds.reuters.com/reuters/worldnews'],
   tech:  ['https://techcrunch.com/feed/', 'https://feeds.arstechnica.com/arstechnica/index', 'https://www.wired.com/feed/rss'],
   good:  ['https://www.positive.news/feed/', 'https://www.goodnewsnetwork.org/feed/', 'https://apnews.com/rss/apf-entertainment'],
