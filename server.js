@@ -91,64 +91,82 @@ app.post('/auth/refresh', async (req, res) => {
 // ── NEWS PROXY ────────────────────────────────────────────────
 // Fetches RSS feeds server-side, no CORS issues
 const NEWS_FEEDS = {
-  afl:   'https://www.afl.com.au/news/feed',
-  world: 'https://feeds.bbci.co.uk/news/world/rss.xml',
-  tech:  'https://www.theverge.com/rss/index.xml',
-  good:  'https://www.positive.news/feed/',
+  afl:   ['https://www.abc.net.au/news/feed/51120/rss.xml', 'https://www.heraldsun.com.au/sport/afl/rss', 'https://www.foxsports.com.au/rss'],
+  world: ['https://feeds.bbci.co.uk/news/world/rss.xml', 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', 'https://feeds.reuters.com/reuters/worldnews'],
+  tech:  ['https://techcrunch.com/feed/', 'https://feeds.arstechnica.com/arstechnica/index', 'https://www.wired.com/feed/rss'],
+  good:  ['https://www.positive.news/feed/', 'https://www.goodnewsnetwork.org/feed/', 'https://apnews.com/rss/apf-entertainment'],
 };
 
 app.get('/news/:feed', async (req, res) => {
   const feedKey = req.params.feed;
-  const feedUrl = NEWS_FEEDS[feedKey];
+  const feedUrls = NEWS_FEEDS[feedKey];
 
-  if (!feedUrl) {
+  if (!feedUrls) {
     return res.status(404).json({ error: 'Unknown feed' });
   }
 
-  try {
-    const response = await fetch(feedUrl, {
-      headers: { 'User-Agent': 'FrequencyApp/1.0' }
-    });
-    const xml = await response.text();
+  // Try each URL in order until one works
+  for (const feedUrl of feedUrls) {
+    try {
+      const response = await fetch(feedUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 FrequencyApp/1.0' },
+        signal: AbortSignal.timeout(8000),
+      });
 
-    // Parse RSS XML into clean JSON
-    const items = [];
-    const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
+      if (!response.ok) continue;
+      const xml = await response.text();
+      if (!xml.includes('<item>') && !xml.includes('<entry>')) continue;
 
-    for (const match of itemMatches) {
-      const block = match[1];
+      const items = [];
+      // Support both RSS <item> and Atom <entry>
+      const tagName = xml.includes('<item>') ? 'item' : 'entry';
+      const itemMatches = xml.matchAll(new RegExp('<' + tagName + '>([\\s\\S]*?)<\/' + tagName + '>', 'g'));
 
-      const title = decodeXml(
-        (block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || ''
-      );
-      const description = decodeXml(
-        (block.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/) || [])[1] || ''
-      );
-      const link = (
-        (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] ||
-        (block.match(/<link[^>]*href="([^"]+)"/) || [])[1] || ''
-      ).trim();
-      const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
+      for (const match of itemMatches) {
+        const block = match[1];
 
-      // Strip HTML tags from description for TLDR
-      const tldr = description
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 140);
+        const title = decodeXml(
+          (block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/) || [])[1] || ''
+        );
+        const description = decodeXml(
+          (block.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/) ||
+           block.match(/<summary[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/summary>/) ||
+           block.match(/<content[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/content>/) ||
+           [])[1] || ''
+        );
+        const link = (
+          (block.match(/<link>(https?:[\s\S]*?)<\/link>/) || [])[1] ||
+          (block.match(/<link[^>]*href="([^"]+)"/) || [])[1] || ''
+        ).trim();
+        const pubDate = (
+          (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] ||
+          (block.match(/<updated>([\s\S]*?)<\/updated>/) || [])[1] || ''
+        );
 
-      if (title) {
-        items.push({ title, tldr, link, pubDate });
+        const tldr = description
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 140);
+
+        if (title && title.length > 3) {
+          items.push({ title, tldr, link, pubDate });
+        }
+
+        if (items.length >= 5) break;
       }
 
-      if (items.length >= 5) break;
+      if (items.length > 0) {
+        return res.json({ feed: feedKey, source: feedUrl, items });
+      }
+    } catch (err) {
+      console.warn('Feed failed:', feedUrl, err.message);
+      continue;
     }
-
-    res.json({ feed: feedKey, items });
-  } catch (err) {
-    res.status(500).json({ error: 'Feed fetch failed', detail: err.message });
   }
+
+  res.status(500).json({ error: 'All feeds failed for ' + feedKey });
 });
 
 function decodeXml(str) {
