@@ -8,9 +8,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS — only allow your Netlify frontend
 app.use(cors({ origin: ['https://profound-bavarois-dec4a5.netlify.app', 'https://frequencyv3.netlify.app'] }));
-  methods: ['GET', 'POST'],
-}));
-
 // ── ENV VARS (set these in Railway) ──────────────────────────
 const CLIENT_ID     = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
