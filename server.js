@@ -7,12 +7,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // CORS — only allow your Netlify frontend
-app.use(cors({
-  origin: [
-    'https://profound-bavarois-dec4a5.netlify.app',
-    'http://localhost:8080',
-    'http://localhost:3000',
-  ],
+app.use(cors({ origin: ['https://profound-bavarois-dec4a5.netlify.app', 'https://frequencyv3.netlify.app'] }));
   methods: ['GET', 'POST'],
 }));
 
